@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Rail: Arcade+</title>
+    <title>Star Rail: Asteroids</title>
     <link rel="stylesheet" href="./src/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
@@ -15,7 +15,7 @@
             <div id="aiLog">
                 [SYSTEM BOOT] UNIT: X-78 STAR-RAIL<br>
                 [OS] CYBERDYNE v2.0.1<br>
-                [NEURAL] LOADING HEURISTIC CORE...<br>
+                [NEURAL] LOADING ASTEROID CORE...<br>
             </div>
             <div id="aiAnalysis" style="margin-top: 15px; color: #fff; font-size: 7px; opacity: 0.7;">
                 TARGETING SYSTEM: INACTIVE<br>
@@ -35,25 +35,26 @@
         <div id="hud" class="hud hidden">
             <div class="hud-box">
                 <div class="hr">SCORE: <span id="s">000000</span></div>
-                <div class="hr"><span id="w">WAVE 1</span> <span id="k">0/8</span></div>
-                <div class="hr" id="l">♥♥♥</div>
-                <div class="hr"><span id="h"></span> <span id="p">ENERGY 0%</span></div>
+                <div class="hr"><span id="w">WAVE 1</span> <span id="k">ROCKS 0</span></div>
+                <div class="hr" id="l">LIVES: 3</div>
+                <div class="hr"><span id="h">HI 0</span> <span id="p">POWER --</span></div>
                 <div class="hr" id="comboUI" style="display:none; color: #ffcc00;">COMBO x<span id="comboMult">1</span></div>
-                <div class="mr">FUEL<div class="mt"><div id="f" class="bar fb"></div></div></div>
-                <div class="mr">AMMO<div class="mt"><div id="a" class="bar ab"></div></div></div>
+                <div class="mr">FUEL<div class="mt"><div id="f" class="bar fuel-fill"></div></div></div>
+                <div class="mr">AMMO<div class="mt"><div id="a" class="bar ammo-fill"></div></div></div>
             </div>
         </div>
 
         <div id="n" class="notif"></div>
 
         <div id="startScreen" class="game-screen hidden">
-            <h1 style="font-size: 36px;">STAR RAIL 3D</h1>
-            <p style="margin-bottom: 30px;">ULTIMATE ARCADE EDITION</p>
+            <h1>STAR RAIL ASTEROIDS</h1>
+            <p style="margin-bottom: 30px;">CLASSIC WRAPAROUND COMBAT</p>
+            <p style="font-size: 12px; color: #00f2ff; margin-bottom: 12px;">HIGH SCORE: <span id="highScoreDisplay">0</span></p>
             <p style="font-size: 12px; color: #ffcc00; margin-bottom: 20px;">TOTAL COINS: <span id="totalCoinsDisplay">0</span></p>
             <button id="startBtn">ENGAGE ENGINES</button><br>
             <div style="display: flex; gap: 10px; justify-content: center;">
                 <button id="helpBtn" class="small-btn">HELP</button>
-                <button id="rankBtn" class="small-btn">RANK</button>
+                <button id="rankBtn" class="small-btn">SCORES</button>
             </div>
             <button id="garageBtn" style="border-color: #ff007f; color: #ff007f;">GARAGE</button>
         </div>
@@ -76,16 +77,19 @@
         <div id="helpScreen" class="game-screen hidden">
             <h1>PILOT MANUAL</h1>
             <div class="help-content">
-                • DRAG: Move Ship<br>
-                • TAP FIRE: Shoot<br>
-                • NITRO: Light Speed
+                ARROWS/WASD: Rotate and thrust<br>
+                SPACE: Fire<br>
+                P: Pause<br><br>
+                STICK: Rotate<br>
+                THRUST: Accelerate<br>
+                FIRE: Shoot
             </div>
             <br><button id="closeHelpBtn">READY</button>
         </div>
 
-        <div id="jz" class="jz"><div class="jb"><div id="jk" class="jk"></div></div></div>
-        <button id="fb" class="fb">🔥</button>
-        <button id="hb" class="hb">⚡</button>
+        <div id="jz" class="jz hidden"><div class="jb"><div id="jk" class="jk"></div></div></div>
+        <button id="fb" class="fire-btn hidden" aria-label="Fire">FIRE</button>
+        <button id="hb" class="thrust-btn hidden" aria-label="Thrust">THRUST</button>
     </div>
     <script type="module" src="./src/main.js"></script>
 </body>

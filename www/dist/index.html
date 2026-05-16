@@ -3,32 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Rail: Arcade+</title>
+    <title>Star Rail: Asteroids</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/index-DXOg5GK2.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-mMeyivfh.css">
+  <script type="module" crossorigin src="./assets/index-C3hqeEqs.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-i22WYzv0.css">
 </head>
 <body>
-    <canvas id="c"></canvas>
-    <div class="ui-layer">
-        <div id="hud" class="hud">
-            <div class="hud-box">
-                <div class="hr"><span id="s">000000</span></div>
-                <div class="hr"><span id="w">WAVE 1</span> <span id="k">0/8</span></div>
-                <div class="hr" id="l">♥♥♥</div>
-                <div class="hr"><span id="h"></span><span id="p">ENERGY 0%</span></div>
-                <div class="mr">FUEL<div class="mt"><div id="f" class="bar fb"></div></div></div>
-                <div class="mr">AMMO<div class="mt"><div id="a" class="bar ab"></div></div></div>
+    <div id="introScreen" class="game-screen">
+        <div class="hud-scanner"></div>
+        <div class="ai-eye"></div>
+        <div class="terminator-text">
+            <div id="aiLog">
+                [SYSTEM BOOT] UNIT: X-78 STAR-RAIL<br>
+                [OS] CYBERDYNE v2.0.1<br>
+                [NEURAL] LOADING ASTEROID CORE...<br>
+            </div>
+            <div id="aiAnalysis" style="margin-top: 15px; color: #fff; font-size: 7px; opacity: 0.7;">
+                TARGETING SYSTEM: INACTIVE<br>
+                THREAT LEVEL: CALCULATING...<br>
             </div>
         </div>
+        <p id="bootPrompt" style="margin-top: 40px; font-size: 10px; letter-spacing: 5px; color: #f00; opacity: 0; animation: blink 0.5s infinite;">INITIATE NEURAL LINK</p>
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; background: radial-gradient(circle at center, transparent 30%, rgba(255,0,0,0.05) 100%);"></div>
+    </div>
+
+    <div id="screenFlash"></div>
+    <div id="crtOverlay"></div>
+    <div id="frenzyOverlay"><div id="speedLinesContainer"></div></div>
+    <canvas id="c"></canvas>
+
+    <div class="ui-layer">
+        <div id="hud" class="hud hidden">
+            <div class="hud-box">
+                <div class="hr">SCORE: <span id="s">000000</span></div>
+                <div class="hr"><span id="w">WAVE 1</span> <span id="k">ROCKS 0</span></div>
+                <div class="hr" id="l">LIVES: 3</div>
+                <div class="hr"><span id="h">HI 0</span> <span id="p">POWER --</span></div>
+                <div class="hr" id="comboUI" style="display:none; color: #ffcc00;">COMBO x<span id="comboMult">1</span></div>
+                <div class="mr">FUEL<div class="mt"><div id="f" class="bar fuel-fill"></div></div></div>
+                <div class="mr">AMMO<div class="mt"><div id="a" class="bar ammo-fill"></div></div></div>
+            </div>
+        </div>
+
         <div id="n" class="notif"></div>
 
-        <div id="jz" class="jz"><div class="jb"><div id="jk" class="jk"></div></div></div>
-        <button id="fb" class="fb">🔥</button>
-        <button id="hb" class="hb">⚡</button>
+        <div id="startScreen" class="game-screen hidden">
+            <h1>STAR RAIL ASTEROIDS</h1>
+            <p style="margin-bottom: 30px;">CLASSIC WRAPAROUND COMBAT</p>
+            <p style="font-size: 12px; color: #00f2ff; margin-bottom: 12px;">HIGH SCORE: <span id="highScoreDisplay">0</span></p>
+            <p style="font-size: 12px; color: #ffcc00; margin-bottom: 20px;">TOTAL COINS: <span id="totalCoinsDisplay">0</span></p>
+            <button id="startBtn">ENGAGE ENGINES</button><br>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="helpBtn" class="small-btn">HELP</button>
+                <button id="rankBtn" class="small-btn">SCORES</button>
+            </div>
+            <button id="garageBtn" style="border-color: #ff007f; color: #ff007f;">GARAGE</button>
+        </div>
 
-        <div id="startScreen" class="hidden"></div>
-        <div id="gameOverScreen" class="hidden"></div>
+        <div id="garageScreen" class="game-screen hidden">
+            <h1 style="color: #ff007f;">THE GARAGE</h1>
+            <div id="garageItems" style="display:flex; flex-wrap: wrap; justify-content: center; gap:15px; width: 90%;">
+                 <div class="upgrade-card" id="buyHp"><h3>HULL</h3><p id="hpLevel">LVL: 0</p><p>COST: 500</p></div>
+                 <div class="upgrade-card" id="buyAmmo"><h3>AMMO</h3><p id="ammoLevel">LVL: 0</p><p>COST: 800</p></div>
+            </div>
+            <br><button id="closeGarageBtn">BACK</button>
+        </div>
+
+        <div id="gameOverScreen" class="game-screen hidden">
+            <h1 style="color: #ff3300;">MISSION ABORTED</h1>
+            <p style="margin-bottom: 20px;">FINAL SCORE: <span id="finalScore">0</span></p>
+            <button id="restartBtn">NEW MISSION</button>
+        </div>
+
+        <div id="helpScreen" class="game-screen hidden">
+            <h1>PILOT MANUAL</h1>
+            <div class="help-content">
+                ARROWS/WASD: Rotate and thrust<br>
+                SPACE: Fire<br>
+                P: Pause<br><br>
+                STICK: Rotate<br>
+                THRUST: Accelerate<br>
+                FIRE: Shoot
+            </div>
+            <br><button id="closeHelpBtn">READY</button>
+        </div>
+
+        <div id="jz" class="jz hidden"><div class="jb"><div id="jk" class="jk"></div></div></div>
+        <button id="fb" class="fire-btn hidden" aria-label="Fire">FIRE</button>
+        <button id="hb" class="thrust-btn hidden" aria-label="Thrust">THRUST</button>
     </div>
 </body>
 </html>
