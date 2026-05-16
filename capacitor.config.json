@@ -1,0 +1,10 @@
+{
+  "appId": "com.hanumant.asteroidsplus",
+  "appName": "Asteroids Arcade Plus",
+  "webDir": "www",
+  "plugins": {
+    "AdMob": {
+      "androidAppId": "ca-app-pub-3940256099942544~3347511713"
+    }
+  }
+}

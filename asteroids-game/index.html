@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>80s Asteroids</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            color: white;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        canvas {
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+            border: 2px solid #fff;
+        }
+        
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            text-shadow: 2px 2px 0 #000;
+        }
+        
+        #score {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        
+        #lives {
+            font-size: 18px;
+            margin-top: 5px;
+        }
+        
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        
+        h1 {
+            font-size: 90px;
+            text-transform: uppercase;
+            letter-spacing: 15px;
+            margin-bottom: 20px;
+            color: #ffffff;
+            text-shadow: 
+                0 0 10px #ffffff,
+                0 0 20px #ffffff,
+                0 0 30px #ffffff,
+                0 0 40px #ffffff;
+            animation: glitchText 4s ease-in-out infinite alternate;
+            position: relative;
+            display: inline-block;
+            font-weight: bold;
+            filter: contrast(1.5) brightness(1.2);
+        }
+        
+        h1::before {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            color: #ffffff;
+            z-index: -1;
+            animation: glitchOffset 0.2s infinite linear;
+            clip: rect(0, 900px, 0, 0);
+            text-shadow: 2px 0 0 #ffffff;
+        }
+        
+        h1::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            color: #ffffff;
+            z-index: -2;
+            animation: glitchOffset 0.3s infinite linear reverse;
+            clip: rect(0, 900px, 0, 0);
+            text-shadow: -2px 0 0 #ffffff;
+        }
+        
+        @keyframes glitchText {
+            0% { 
+                transform: translateY(0) scale(1);
+                text-shadow: 
+                    0 0 10px #ffffff,
+                    0 0 20px #ffffff,
+                    0 0 30px #ffffff,
+                    0 0 40px #ffffff;
+            }
+            50% { 
+                transform: translateY(-5px) scale(1.05);
+                text-shadow: 
+                    0 0 15px #ffffff,
+                    0 0 25px #ffffff,
+                    0 0 35px #ffffff,
+                    0 0 45px #ffffff;
+            }
+            100% { 
+                transform: translateY(5px) scale(0.95);
+                text-shadow: 
+                    0 0 20px #ffffff,
+                    0 0 30px #ffffff,
+                    0 0 40px #ffffff,
+                    0 0 50px #ffffff;
+            }
+        }
+        
+        @keyframes glitchOffset {
+            0%, 100% { transform: translate(0); }
+            10% { transform: translate(-3px, 3px); }
+            20% { transform: translate(-3px, -3px); }
+            30% { transform: translate(3px, 3px); }
+            40% { transform: translate(3px, -3px); }
+            50% { transform: translate(-3px, -3px); }
+            60% { transform: translate(3px, 3px); }
+            70% { transform: translate(-3px, 3px); }
+            80% { transform: translate(3px, -3px); }
+            90% { transform: translate(0, 0); }
+        }
+        
+        @keyframes glitchFlicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        
+        h1 span {
+            animation: glitchFlicker 0.1s infinite;
+        }
+        
+        .subtitle {
+            font-size: 18px;
+            margin-bottom: 40px;
+            opacity: 0.8;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 40px;
+            line-height: 1.5;
+        }
+        
+        .control-row {
+            margin-bottom: 10px;
+            font-family: monospace;
+        }
+        
+        button {
+            background: transparent;
+            border: 2px solid #fff;
+            color: #fff;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-family: 'Courier New', Courier, monospace;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button:hover {
+            background: #fff;
+            color: #000;
+            box-shadow: 0 0 15px #fff;
+        }
+        
+        button:active {
+            transform: scale(0.95);
+        }
+        
+        #game-over {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 10;
+        }
+        
+        #final-score {
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes flicker {
+            0% { opacity: 1; }
+            100% { opacity: 0.3; }
+        }
+        
+        @media (max-width: 600px) {
+            h1 { font-size: 32px; }
+            button { padding: 10px 20px; font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui-layer">
+            <div id="score">SCORE: 0000</div>
+            <div id="lives">LIVES: 3</div>
+        </div>
+        
+        <div id="start-screen">
+            <h1 data-text="ASTEROIDS">Asteroids</h1>
+            <div class="controls">
+                <div class="control-row">WASD - Move & Rotate</div>
+                <div class="control-row">SPACE - Fire</div>
+                <div class="control-row">P - Pause</div>
+            </div>
+            <button id="start-btn">Start Game</button>
+        </div>
+        
+        <div id="game-over">
+            <h1>Game Over</h1>
+            <div id="final-score">Score: 0</div>
+            <button id="restart-btn">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced glitch effect for the title
+        document.addEventListener('DOMContentLoaded', function() {
+            const title = document.querySelector('h1');
+            
+            function createGlitchEffect() {
+                // Random horizontal displacement
+                const x = Math.random() * 6 - 3;
+                const y = Math.random() * 6 - 3;
+                
+                // Random scale
+                const scale = 0.95 + Math.random() * 0.1;
+                
+                // Random color shift (removed red)
+                const colors = ['#ffffff', '#00ffff', '#ffff00', '#ff00ff'];
+                const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                // Apply glitch
+                title.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+                title.style.textShadow = `
+                    0 0 10px ${randomColor},
+                    0 0 20px ${randomColor},
+                    0 0 30px ${randomColor},
+                    0 0 40px ${randomColor}
+                `;
+                
+                // Reset after glitch
+                setTimeout(() => {
+                    title.style.transform = 'translate(0) scale(1)';
+                    title.style.textShadow = `
+                        0 0 10px #ffffff,
+                        0 0 20px #ffffff,
+                        0 0 30px #ffffff,
+                        0 0 40px #ffffff
+                    `;
+                }, 50);
+            }
+            
+            // Trigger glitch every 200-800ms
+            setInterval(createGlitchEffect, Math.random() * 600 + 200);
+            
+            // Add flicker effect
+            setInterval(() => {
+                if (Math.random() > 0.8) {
+                    title.style.opacity = '0';
+                    setTimeout(() => {
+                        title.style.opacity = '1';
+                    }, 50);
+                }
+            }, 100);
+        });
+    </script>
+    <script src="game.js"></script>
+</body>
+</html>
