@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Rail: Asteroids</title>
+    <title>Star Rail: Full Edition</title>
     <link rel="stylesheet" href="./src/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
@@ -41,14 +41,19 @@
                 <div class="hr" id="comboUI" style="display:none; color: #ffcc00;">COMBO x<span id="comboMult">1</span></div>
                 <div class="mr">FUEL<div class="mt"><div id="f" class="bar fuel-fill"></div></div></div>
                 <div class="mr">AMMO<div class="mt"><div id="a" class="bar ammo-fill"></div></div></div>
+                <div class="mr">SHIELD<div class="mt"><div id="sh" class="bar shield-fill"></div></div></div>
             </div>
         </div>
 
         <div id="n" class="notif"></div>
+        <div id="bossUI" class="boss-ui hidden">
+            <div class="boss-title">DREADNOUGHT</div>
+            <div class="boss-meter"><div id="bossFill"></div></div>
+        </div>
 
         <div id="startScreen" class="game-screen hidden">
-            <h1>STAR RAIL ASTEROIDS</h1>
-            <p style="margin-bottom: 30px;">CLASSIC WRAPAROUND COMBAT</p>
+            <h1>STAR RAIL FULL EDITION</h1>
+            <p style="margin-bottom: 30px;">BOSS WAVES / PICKUPS / POWERUPS</p>
             <p style="font-size: 12px; color: #00f2ff; margin-bottom: 12px;">HIGH SCORE: <span id="highScoreDisplay">0</span></p>
             <p style="font-size: 12px; color: #ffcc00; margin-bottom: 20px;">TOTAL COINS: <span id="totalCoinsDisplay">0</span></p>
             <button id="startBtn">ENGAGE ENGINES</button><br>
@@ -64,6 +69,8 @@
             <div id="garageItems" style="display:flex; flex-wrap: wrap; justify-content: center; gap:15px; width: 90%;">
                  <div class="upgrade-card" id="buyHp"><h3>HULL</h3><p id="hpLevel">LVL: 0</p><p>COST: 500</p></div>
                  <div class="upgrade-card" id="buyAmmo"><h3>AMMO</h3><p id="ammoLevel">LVL: 0</p><p>COST: 800</p></div>
+                 <div class="upgrade-card" id="buyFuel"><h3>FUEL</h3><p id="fuelLevel">LVL: 0</p><p>COST: 650</p></div>
+                 <div class="upgrade-card" id="buyShield"><h3>SHIELD</h3><p id="shieldLevel">LVL: 0</p><p>COST: 1200</p></div>
             </div>
             <br><button id="closeGarageBtn">BACK</button>
         </div>
@@ -82,7 +89,9 @@
                 P: Pause<br><br>
                 STICK: Rotate<br>
                 THRUST: Accelerate<br>
-                FIRE: Shoot
+                FIRE: Shoot<br><br>
+                COLLECT: Fuel, ammo, shield, life, triple shot<br>
+                EVERY 5TH WAVE: Boss fight
             </div>
             <br><button id="closeHelpBtn">READY</button>
         </div>

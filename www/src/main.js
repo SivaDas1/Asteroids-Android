@@ -12,10 +12,13 @@ let scale = 1;
 let ship = null;
 let asteroids = [];
 let bullets = [];
+let enemyBullets = [];
+let pickups = [];
 let particles = [];
 let popups = [];
 let stars = [];
 let alienShip = null;
+let bossShip = null;
 let rafId = 0;
 
 const keys = Object.create(null);
@@ -39,6 +42,8 @@ const state = {
   maxFuel: 100,
   ammo: 20,
   maxAmmo: 20,
+  shield: 0,
+  maxShield: 0,
   bulletCooldown: 0,
   bulletCooldownMax: 14,
   bulletRegenTimer: 0,
@@ -51,6 +56,7 @@ const state = {
   powerDuration: 900,
   alienTimer: 0,
   alienInterval: 1200,
+  bossWave: false,
   frame: 0,
   shake: 0,
   shakeX: 0,
@@ -159,21 +165,35 @@ class Ship {
     }
 
     const shotSpeed = 9.5 * scale;
-    const muzzle = Vector.fromAngle(this.angle, this.radius + 4 * scale);
-    const velocity = Vector.fromAngle(this.angle, shotSpeed).add(this.vel.copy().multiply(0.28));
-    bullets.push(new Bullet(this.pos.x + muzzle.x, this.pos.y + muzzle.y, velocity));
+    const spread = state.powerType === 'triple_shot' ? [-0.18, 0, 0.18] : [0];
+    spread.forEach((offset) => {
+      const shotAngle = this.angle + offset;
+      const muzzle = Vector.fromAngle(shotAngle, this.radius + 4 * scale);
+      const velocity = Vector.fromAngle(shotAngle, shotSpeed).add(this.vel.copy().multiply(0.28));
+      bullets.push(new Bullet(this.pos.x + muzzle.x, this.pos.y + muzzle.y, velocity));
+    });
 
     if (state.powerType !== 'infinite_bullets') {
       state.ammo -= 1;
     }
 
-    state.bulletCooldown = state.powerType === 'infinite_bullets' ? 5 : state.bulletCooldownMax;
+    state.bulletCooldown = state.powerType === 'infinite_bullets' || state.powerType === 'triple_shot' ? 5 : state.bulletCooldownMax;
     triggerShake(3, 6);
     playSfx('shoot');
   }
 
   hit() {
     if (this.invincible > 0) {
+      return;
+    }
+
+    if (state.shield > 0) {
+      state.shield -= 1;
+      this.invincible = 90;
+      createExplosion(this.pos.x, this.pos.y, '#00f2ff', 18);
+      triggerShake(8, 12);
+      notify('SHIELD HIT', '#00f2ff');
+      playSfx('power');
       return;
     }
 
@@ -232,6 +252,14 @@ class Ship {
       ctx.beginPath();
       ctx.moveTo(-this.radius * 0.85, 0);
       ctx.lineTo(-this.radius * randomRange(1.25, 1.85), 0);
+      ctx.stroke();
+    }
+
+    if (state.shield > 0) {
+      ctx.shadowColor = '#00f2ff';
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.55)';
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius * 1.45, 0, TAU);
       ctx.stroke();
     }
 
@@ -400,6 +428,140 @@ class AlienShip {
     ctx.moveTo(-this.radius, 0);
     ctx.lineTo(this.radius, 0);
     ctx.stroke();
+    ctx.restore();
+  }
+}
+
+class BossShip {
+  constructor() {
+    this.pos = new Vector(width / 2, -110 * scale);
+    this.vel = new Vector(0, 0.78 * scale);
+    this.radius = 54 * scale;
+    this.angle = 0;
+    this.maxHp = 18 + state.wave * 5;
+    this.hp = this.maxHp;
+    this.shootTimer = 90;
+    this.scoreValue = 2500 + state.wave * 250;
+  }
+
+  update() {
+    if (this.pos.y < height * 0.22) {
+      this.pos.add(this.vel);
+    } else {
+      this.pos.x = width / 2 + Math.sin(state.frame * 0.018) * width * 0.28;
+      this.pos.y = height * 0.2 + Math.cos(state.frame * 0.014) * 18 * scale;
+    }
+
+    this.angle += 0.01;
+    this.shootTimer -= 1;
+    if (this.shootTimer <= 0) {
+      this.shootTimer = Math.max(42, 92 - state.wave * 4);
+      fireEnemyBurst(this.pos, 5, ship ? Math.atan2(ship.pos.y - this.pos.y, ship.pos.x - this.pos.x) : Math.PI / 2, 0.8);
+      playSfx('alien');
+    }
+  }
+
+  draw() {
+    ctx.save();
+    ctx.translate(this.pos.x, this.pos.y);
+    ctx.rotate(this.angle);
+    ctx.lineWidth = 2 * scale;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.shadowBlur = 18 * scale;
+    ctx.shadowColor = '#ff335f';
+    ctx.strokeStyle = '#ff335f';
+
+    ctx.beginPath();
+    ctx.moveTo(0, -this.radius);
+    ctx.lineTo(this.radius * 1.25, -this.radius * 0.16);
+    ctx.lineTo(this.radius * 0.54, this.radius * 0.82);
+    ctx.lineTo(0, this.radius * 0.35);
+    ctx.lineTo(-this.radius * 0.54, this.radius * 0.82);
+    ctx.lineTo(-this.radius * 1.25, -this.radius * 0.16);
+    ctx.closePath();
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffcc00';
+    ctx.beginPath();
+    ctx.arc(0, 0, this.radius * 0.34, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+class EnemyBullet {
+  constructor(x, y, velocity) {
+    this.pos = new Vector(x, y);
+    this.vel = velocity.copy();
+    this.radius = 4.5 * scale;
+    this.life = 180;
+  }
+
+  update() {
+    this.pos.add(this.vel);
+    this.life -= 1;
+  }
+
+  draw() {
+    ctx.save();
+    ctx.shadowBlur = 12 * scale;
+    ctx.shadowColor = '#ff335f';
+    ctx.fillStyle = '#ff6688';
+    ctx.beginPath();
+    ctx.arc(this.pos.x, this.pos.y, this.radius, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+class Pickup {
+  constructor(x, y, type) {
+    this.pos = new Vector(x, y);
+    this.vel = randomVelocity(0.75);
+    this.type = type;
+    this.radius = 13 * scale;
+    this.life = 720;
+    this.angle = randomRange(0, TAU);
+  }
+
+  update() {
+    if (ship) {
+      const pullRange = 120 * scale;
+      const dx = ship.pos.x - this.pos.x;
+      const dy = ship.pos.y - this.pos.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < pullRange && dist > 0.01) {
+        this.vel.x += (dx / dist) * 0.045 * scale;
+        this.vel.y += (dy / dist) * 0.045 * scale;
+      }
+    }
+
+    this.vel.limit(3.5 * scale);
+    this.pos.add(this.vel);
+    wrap(this.pos, this.radius);
+    this.angle += 0.04;
+    this.life -= 1;
+  }
+
+  draw() {
+    const color = pickupColor(this.type);
+    ctx.save();
+    ctx.translate(this.pos.x, this.pos.y);
+    ctx.rotate(this.angle);
+    ctx.lineWidth = 2 * scale;
+    ctx.shadowBlur = 14 * scale;
+    ctx.shadowColor = color;
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.rect(-this.radius * 0.7, -this.radius * 0.7, this.radius * 1.4, this.radius * 1.4);
+    ctx.stroke();
+
+    ctx.fillStyle = color;
+    ctx.font = `${Math.max(8, 9 * scale)}px "Press Start 2P", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(pickupLabel(this.type), 0, 1);
     ctx.restore();
   }
 }
@@ -636,22 +798,63 @@ function wrap(pos, margin) {
   if (pos.y > height + margin) pos.y = -margin;
 }
 
+function pickupColor(type) {
+  return {
+    fuel: '#ffcc00',
+    ammo: '#00f2ff',
+    shield: '#79ff8b',
+    repair: '#ff6688',
+    triple_shot: '#ff4dff',
+    infinite_bullets: '#ffffff',
+    double_fuel: '#ffcc00',
+  }[type] || '#ffffff';
+}
+
+function pickupLabel(type) {
+  return {
+    fuel: 'F',
+    ammo: 'A',
+    shield: 'S',
+    repair: '+',
+    triple_shot: '3',
+    infinite_bullets: 'I',
+    double_fuel: 'D',
+  }[type] || '?';
+}
+
+function fireEnemyBurst(origin, count, aimAngle, spread) {
+  for (let i = 0; i < count; i += 1) {
+    const offset = count === 1 ? 0 : (i / (count - 1) - 0.5) * spread;
+    const speed = (2.9 + state.wave * 0.08) * scale;
+    enemyBullets.push(new EnemyBullet(origin.x, origin.y, Vector.fromAngle(aimAngle + offset, speed)));
+  }
+}
+
 function createWave() {
   asteroids = [];
   bullets = [];
+  enemyBullets = [];
+  pickups = [];
   particles = [];
   popups = [];
   alienShip = null;
+  bossShip = null;
   state.kills = 0;
   state.alienTimer = 0;
   state.alienInterval = Math.max(480, 1200 - state.wave * 30);
+  state.bossWave = state.wave % 5 === 0;
 
-  const count = Math.min(4 + state.wave, 12);
+  const count = state.bossWave ? Math.min(4 + Math.floor(state.wave / 2), 9) : Math.min(4 + state.wave, 12);
   for (let i = 0; i < count; i += 1) {
     spawnAsteroidAwayFromShip(3);
   }
 
-  notify(`WAVE ${state.wave}`, '#00f2ff');
+  if (state.bossWave) {
+    bossShip = new BossShip();
+    notify(`BOSS WAVE ${state.wave}`, '#ff335f');
+  } else {
+    notify(`WAVE ${state.wave}`, '#00f2ff');
+  }
 }
 
 function spawnAsteroidAwayFromShip(size) {
@@ -734,11 +937,17 @@ function updateMenuUI() {
 function updateGarageUI() {
   const hpLevel = Number(localStorage.getItem('upg_hp') || '0');
   const ammoLevel = Number(localStorage.getItem('upg_am') || '0');
+  const fuelLevel = Number(localStorage.getItem('upg_fuel') || '0');
+  const shieldLevel = Number(localStorage.getItem('upg_shield') || '0');
   const hp = document.getElementById('hpLevel');
   const ammo = document.getElementById('ammoLevel');
+  const fuel = document.getElementById('fuelLevel');
+  const shield = document.getElementById('shieldLevel');
   const coins = document.getElementById('totalCoinsDisplay');
   if (hp) hp.textContent = `LVL: ${hpLevel}`;
   if (ammo) ammo.textContent = `LVL: ${ammoLevel}`;
+  if (fuel) fuel.textContent = `LVL: ${fuelLevel}`;
+  if (shield) shield.textContent = `LVL: ${shieldLevel}`;
   if (coins) coins.textContent = String(state.totalCoins);
 }
 
@@ -746,15 +955,19 @@ function startGame() {
   initAudio();
   const hpLevel = Number(localStorage.getItem('upg_hp') || '0');
   const ammoLevel = Number(localStorage.getItem('upg_am') || '0');
+  const fuelLevel = Number(localStorage.getItem('upg_fuel') || '0');
+  const shieldLevel = Number(localStorage.getItem('upg_shield') || '0');
 
   state.mode = 'playing';
   state.score = 0;
   state.lives = 3 + hpLevel;
   state.wave = 1;
-  state.fuel = 100;
-  state.maxFuel = 100;
+  state.maxFuel = 100 + fuelLevel * 20;
+  state.fuel = state.maxFuel;
   state.maxAmmo = 20 + ammoLevel * 5;
   state.ammo = state.maxAmmo;
+  state.maxShield = shieldLevel;
+  state.shield = state.maxShield;
   state.bulletCooldown = 0;
   state.bulletCooldownMax = 14;
   state.bulletRegenTimer = 0;
@@ -822,18 +1035,24 @@ function updatePlaying() {
   }
 
   updateAlien();
+  updateBoss();
   updateObjects();
   checkCollisions();
 
-  if (asteroids.length === 0 && state.mode === 'playing') {
+  if (asteroids.length === 0 && !bossShip && state.mode === 'playing') {
     state.wave += 1;
     state.fuel = Math.min(state.maxFuel, state.fuel + 40);
     state.ammo = Math.min(state.maxAmmo, state.ammo + 4);
+    state.shield = Math.min(state.maxShield, state.shield + 1);
     createWave();
   }
 }
 
 function updateAlien() {
+  if (state.bossWave) {
+    return;
+  }
+
   if (alienShip) {
     alienShip.update();
     return;
@@ -848,11 +1067,36 @@ function updateAlien() {
   }
 }
 
+function updateBoss() {
+  if (bossShip) {
+    bossShip.update();
+  }
+}
+
 function updateObjects() {
   for (let i = bullets.length - 1; i >= 0; i -= 1) {
     bullets[i].update();
     if (bullets[i].life <= 0) {
       bullets.splice(i, 1);
+    }
+  }
+
+  for (let i = enemyBullets.length - 1; i >= 0; i -= 1) {
+    enemyBullets[i].update();
+    const offScreen =
+      enemyBullets[i].pos.x < -80 * scale ||
+      enemyBullets[i].pos.x > width + 80 * scale ||
+      enemyBullets[i].pos.y < -80 * scale ||
+      enemyBullets[i].pos.y > height + 80 * scale;
+    if (enemyBullets[i].life <= 0 || offScreen) {
+      enemyBullets.splice(i, 1);
+    }
+  }
+
+  for (let i = pickups.length - 1; i >= 0; i -= 1) {
+    pickups[i].update();
+    if (pickups[i].life <= 0) {
+      pickups.splice(i, 1);
     }
   }
 
@@ -893,6 +1137,25 @@ function checkCollisions() {
       createExplosion(alienShip.pos.x, alienShip.pos.y, '#79ff8b', 18);
       alienShip = null;
     }
+
+    if (bossShip && distance(ship.pos, bossShip.pos) < ship.radius + bossShip.radius * 0.75) {
+      ship.hit();
+    }
+
+    for (let i = enemyBullets.length - 1; i >= 0; i -= 1) {
+      if (distance(ship.pos, enemyBullets[i].pos) < ship.radius + enemyBullets[i].radius) {
+        enemyBullets.splice(i, 1);
+        ship.hit();
+        break;
+      }
+    }
+  }
+
+  for (let i = pickups.length - 1; i >= 0; i -= 1) {
+    if (distance(ship.pos, pickups[i].pos) < ship.radius + pickups[i].radius) {
+      collectPickup(pickups[i]);
+      pickups.splice(i, 1);
+    }
   }
 
   for (let i = bullets.length - 1; i >= 0; i -= 1) {
@@ -916,6 +1179,12 @@ function checkCollisions() {
     if (alienShip && distance(bullet.pos, alienShip.pos) < alienShip.hitRadius) {
       bullets.splice(i, 1);
       destroyAlien();
+      continue;
+    }
+
+    if (bossShip && distance(bullet.pos, bossShip.pos) < bossShip.radius) {
+      bullets.splice(i, 1);
+      damageBoss(bullet.pos.x, bullet.pos.y);
     }
   }
 }
@@ -940,6 +1209,11 @@ function destroyAsteroid(index) {
     state.ammo = Math.min(state.maxAmmo, state.ammo + 1);
     popups.push(new ScorePopup(asteroid.pos.x, asteroid.pos.y + 32 * scale, 'AMMO +1', '#00f2ff'));
   }
+
+  const dropChance = asteroid.size === 3 ? 0.32 : asteroid.size === 2 ? 0.2 : 0.09;
+  if (Math.random() < dropChance) {
+    spawnPickup(asteroid.pos.x, asteroid.pos.y);
+  }
 }
 
 function destroyAlien() {
@@ -958,6 +1232,61 @@ function destroyAlien() {
   activatePower(powerType, x, y);
 }
 
+function damageBoss(x, y) {
+  if (!bossShip) {
+    return;
+  }
+
+  bossShip.hp -= state.powerType === 'triple_shot' ? 2 : 1;
+  createExplosion(x, y, '#ff335f', 4);
+  triggerShake(3, 5);
+
+  if (bossShip.hp <= 0) {
+    const bx = bossShip.pos.x;
+    const by = bossShip.pos.y;
+    registerScore(bossShip.scoreValue, bx, by);
+    createExplosion(bx, by, '#ff335f', 54);
+    createExplosion(bx, by, '#ffcc00', 36);
+    triggerShake(20, 28);
+    playSfx('explosion');
+    pickups.push(new Pickup(bx, by, 'shield'));
+    pickups.push(new Pickup(bx + 26 * scale, by, 'triple_shot'));
+    bossShip = null;
+    enemyBullets = [];
+    notify('BOSS DESTROYED', '#ffcc00');
+  }
+}
+
+function spawnPickup(x, y) {
+  const roll = Math.random();
+  let type = 'fuel';
+  if (roll > 0.78) type = 'triple_shot';
+  else if (roll > 0.62) type = 'shield';
+  else if (roll > 0.46) type = 'repair';
+  else if (roll > 0.24) type = 'ammo';
+  pickups.push(new Pickup(x, y, type));
+}
+
+function collectPickup(pickup) {
+  if (pickup.type === 'fuel') {
+    state.fuel = state.maxFuel;
+    popups.push(new ScorePopup(pickup.pos.x, pickup.pos.y, 'FUEL FULL', '#ffcc00'));
+  } else if (pickup.type === 'ammo') {
+    state.ammo = state.maxAmmo;
+    popups.push(new ScorePopup(pickup.pos.x, pickup.pos.y, 'AMMO FULL', '#00f2ff'));
+  } else if (pickup.type === 'shield') {
+    state.shield = Math.min(state.maxShield || 1, state.shield + 1);
+    popups.push(new ScorePopup(pickup.pos.x, pickup.pos.y, 'SHIELD +1', '#79ff8b'));
+  } else if (pickup.type === 'repair') {
+    state.lives += 1;
+    popups.push(new ScorePopup(pickup.pos.x, pickup.pos.y, 'LIFE +1', '#ff6688'));
+  } else {
+    activatePower(pickup.type, pickup.pos.x, pickup.pos.y);
+  }
+
+  playSfx('power');
+}
+
 function activatePower(type, x, y) {
   state.powerType = type;
   state.powerTimer = state.powerDuration;
@@ -965,12 +1294,20 @@ function activatePower(type, x, y) {
   if (type === 'double_fuel') {
     state.fuel = state.maxFuel;
     popups.push(new ScorePopup(x, y - 42 * scale, 'DOUBLE FUEL', '#ffcc00'));
-  } else {
+  } else if (type === 'infinite_bullets') {
     state.bulletCooldownMax = 5;
     popups.push(new ScorePopup(x, y - 42 * scale, 'INFINITE AMMO', '#00f2ff'));
+  } else if (type === 'triple_shot') {
+    state.bulletCooldownMax = 5;
+    popups.push(new ScorePopup(x, y - 42 * scale, 'TRIPLE SHOT', '#ff4dff'));
   }
 
-  notify(type === 'double_fuel' ? 'DOUBLE FUEL' : 'INFINITE AMMO', '#ffcc00');
+  const label = {
+    double_fuel: 'DOUBLE FUEL',
+    infinite_bullets: 'INFINITE AMMO',
+    triple_shot: 'TRIPLE SHOT',
+  }[type] || 'POWER UP';
+  notify(label, pickupColor(type));
   playSfx('power');
 }
 
@@ -1044,9 +1381,12 @@ function updateUI() {
   const high = document.getElementById('h');
   const fuel = document.getElementById('f');
   const ammo = document.getElementById('a');
+  const shield = document.getElementById('sh');
   const power = document.getElementById('p');
   const combo = document.getElementById('comboUI');
   const comboMult = document.getElementById('comboMult');
+  const boss = document.getElementById('bossUI');
+  const bossFill = document.getElementById('bossFill');
 
   if (score) score.textContent = String(state.score).padStart(6, '0');
   if (wave) wave.textContent = `WAVE ${state.wave}`;
@@ -1055,13 +1395,25 @@ function updateUI() {
   if (high) high.textContent = `HI ${state.highScore}`;
   if (fuel) fuel.style.width = `${clamp((state.fuel / state.maxFuel) * 100, 0, 100)}%`;
   if (ammo) ammo.style.width = `${clamp((state.ammo / state.maxAmmo) * 100, 0, 100)}%`;
+  if (shield) {
+    const max = Math.max(1, state.maxShield);
+    shield.style.width = `${clamp((state.shield / max) * 100, 0, 100)}%`;
+  }
 
   if (power) {
     if (state.powerType) {
       const label = state.powerType === 'double_fuel' ? 'DOUBLE FUEL' : 'INFINITE AMMO';
-      power.textContent = `${label} ${Math.ceil(state.powerTimer / 60)}S`;
+      const name = state.powerType === 'triple_shot' ? 'TRIPLE SHOT' : label;
+      power.textContent = `${name} ${Math.ceil(state.powerTimer / 60)}S`;
     } else {
       power.textContent = 'POWER --';
+    }
+  }
+
+  if (boss && bossFill) {
+    boss.classList.toggle('hidden', !bossShip);
+    if (bossShip) {
+      bossFill.style.width = `${clamp((bossShip.hp / bossShip.maxHp) * 100, 0, 100)}%`;
     }
   }
 
@@ -1083,8 +1435,11 @@ function draw() {
   ctx.translate(shakeX, shakeY);
   drawStars();
   asteroids.forEach((asteroid) => asteroid.draw());
+  pickups.forEach((pickup) => pickup.draw());
+  if (bossShip) bossShip.draw();
   if (alienShip) alienShip.draw();
   bullets.forEach((bullet) => bullet.draw());
+  enemyBullets.forEach((bullet) => bullet.draw());
   particles.forEach((particle) => particle.draw());
   if (ship) ship.draw();
   popups.forEach((popup) => popup.draw());
@@ -1239,6 +1594,12 @@ function setupButtons() {
   });
   document.getElementById('buyAmmo')?.addEventListener('click', () => {
     buyUpgrade('upg_am', 800);
+  });
+  document.getElementById('buyFuel')?.addEventListener('click', () => {
+    buyUpgrade('upg_fuel', 650);
+  });
+  document.getElementById('buyShield')?.addEventListener('click', () => {
+    buyUpgrade('upg_shield', 1200);
   });
 }
 
