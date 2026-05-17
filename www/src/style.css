@@ -394,6 +394,18 @@ button:active {
     transition: opacity 0.18s ease;
 }
 
+.score-popup {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 700;
+    pointer-events: none;
+    font-size: 10px;
+    line-height: 1;
+    text-shadow: 0 0 12px currentColor;
+    will-change: transform, opacity;
+}
+
 @media (max-width: 540px) {
     .game-screen {
         padding: 18px;
@@ -465,6 +477,10 @@ button:active {
     }
 
     .help-content {
+        font-size: 8px;
+    }
+
+    .score-popup {
         font-size: 8px;
     }
 }

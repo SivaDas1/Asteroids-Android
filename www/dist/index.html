@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Rail: Full Edition</title>
+    <title>Star Rail: 3D Full Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/index-DPVR9qlJ.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-WhdTD-gR.css">
+  <script type="module" crossorigin src="./assets/index-F9W1_uTU.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CfsqJArs.css">
 </head>
 <body>
     <div id="introScreen" class="game-screen">
@@ -15,8 +15,8 @@
         <div class="terminator-text">
             <div id="aiLog">
                 [SYSTEM BOOT] UNIT: X-78 STAR-RAIL<br>
-                [OS] CYBERDYNE v2.0.1<br>
-                [NEURAL] LOADING ASTEROID CORE...<br>
+                [OS] CYBERDYNE v3.0.0<br>
+                [NEURAL] LOADING 3D ASTEROID CORE...<br>
             </div>
             <div id="aiAnalysis" style="margin-top: 15px; color: #fff; font-size: 7px; opacity: 0.7;">
                 TARGETING SYSTEM: INACTIVE<br>
@@ -53,8 +53,8 @@
         </div>
 
         <div id="startScreen" class="game-screen hidden">
-            <h1>STAR RAIL FULL EDITION</h1>
-            <p style="margin-bottom: 30px;">BOSS WAVES / PICKUPS / POWERUPS</p>
+            <h1>STAR RAIL 3D</h1>
+            <p style="margin-bottom: 30px;">ANDROID 3D FULL EDITION</p>
             <p style="font-size: 12px; color: #00f2ff; margin-bottom: 12px;">HIGH SCORE: <span id="highScoreDisplay">0</span></p>
             <p style="font-size: 12px; color: #ffcc00; margin-bottom: 20px;">TOTAL COINS: <span id="totalCoinsDisplay">0</span></p>
             <button id="startBtn">ENGAGE ENGINES</button><br>
@@ -85,13 +85,15 @@
         <div id="helpScreen" class="game-screen hidden">
             <h1>PILOT MANUAL</h1>
             <div class="help-content">
-                ARROWS/WASD: Rotate and thrust<br>
+                ARROWS/WASD: Move left/right/up/down<br>
                 SPACE: Fire<br>
+                SHIFT: Boost<br>
                 P: Pause<br><br>
-                STICK: Rotate<br>
-                THRUST: Accelerate<br>
+                STICK: Move ship horizontally and vertically<br>
+                BOOST: Quick dodge<br>
                 FIRE: Shoot<br><br>
                 COLLECT: Fuel, ammo, shield, life, triple shot<br>
+                3D FLIGHT: Dodge incoming rocks, alien ships, and boss fire<br>
                 EVERY 5TH WAVE: Boss fight
             </div>
             <br><button id="closeHelpBtn">READY</button>
@@ -99,7 +101,7 @@
 
         <div id="jz" class="jz hidden"><div class="jb"><div id="jk" class="jk"></div></div></div>
         <button id="fb" class="fire-btn hidden" aria-label="Fire">FIRE</button>
-        <button id="hb" class="thrust-btn hidden" aria-label="Thrust">THRUST</button>
+        <button id="hb" class="thrust-btn hidden" aria-label="Boost">BOOST</button>
     </div>
 </body>
 </html>
