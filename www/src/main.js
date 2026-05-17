@@ -10,6 +10,8 @@ const SHIP_Z = 24;
 const FAR_Z = -150;
 const BOSS_Z = -104;
 const DESPAWN_Z = SHIP_Z + 16;
+const BASE_RAIL_SPEED = 1.55;
+const BOOST_RAIL_SPEED = 2.75;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const randomRange = (min, max) => Math.random() * (max - min) + min;
@@ -25,6 +27,8 @@ let scene = null;
 let camera = null;
 let starField = null;
 let flightTunnel = null;
+let speedLines = null;
+let lockMarker = null;
 let ship = null;
 let asteroids = [];
 let bullets = [];
@@ -150,8 +154,8 @@ class Ship {
     const normalizedY = magnitude > 1 ? this.inputY / magnitude : this.inputY;
     this.boosting = (keys.ShiftLeft || keys.ShiftRight || touch.boost) && state.fuel > 0;
 
-    const acceleration = (this.boosting ? 0.048 : 0.032) * worldHeight;
-    const maxSpeed = (this.boosting ? 0.072 : 0.048) * worldHeight;
+    const acceleration = (this.boosting ? 0.08 : 0.055) * worldHeight;
+    const maxSpeed = (this.boosting ? 0.14 : 0.095) * worldHeight;
     if (magnitude > 0.04) {
       this.vel.x += normalizedX * acceleration;
       this.vel.y += normalizedY * acceleration;
@@ -170,7 +174,7 @@ class Ship {
       state.fuel = Math.min(state.maxFuel, state.fuel + 0.045);
     }
 
-    this.vel.multiply(0.86);
+    this.vel.multiply(0.78);
     this.pos.add(this.vel);
     const margin = this.radius * 1.15;
     this.pos.x = clamp(this.pos.x, -worldWidth / 2 + margin, worldWidth / 2 - margin);
@@ -204,9 +208,10 @@ class Ship {
       return;
     }
 
-    const spread = state.powerType === 'triple_shot' ? [-0.7, 0, 0.7] : [0];
+    const spread = state.powerType === 'triple_shot' ? [-0.9, 0, 0.9] : [0];
     spread.forEach((offset) => {
-      bullets.push(new Bullet(this.pos.x + offset * unitScale, this.pos.y, SHIP_Z - 3.2 * unitScale, offset * 0.025 * worldWidth, 0, -3.2 * unitScale));
+      const target = findAutoAimTarget(offset);
+      bullets.push(new Bullet(this.pos.x + offset * unitScale, this.pos.y, SHIP_Z - 3.2 * unitScale, offset * 0.018 * worldWidth, 0, -5.4 * unitScale, target));
     });
 
     if (state.powerType !== 'infinite_bullets') {
@@ -254,14 +259,15 @@ class Ship {
 }
 
 class Bullet {
-  constructor(x, y, z, vx, vy, vz) {
+  constructor(x, y, z, vx, vy, vz, target = null) {
     this.pos = new Vector2(x, y);
     this.z = z;
     this.vx = vx;
     this.vy = vy;
     this.vz = vz;
+    this.target = target;
     this.radius = 0.42 * unitScale;
-    this.life = 78;
+    this.life = 60;
     this.mesh = new THREE.Mesh(geometries.bullet, materials.bullet);
     this.mesh.scale.setScalar(this.radius);
     scene.add(this.mesh);
@@ -269,6 +275,20 @@ class Bullet {
   }
 
   update() {
+    if (this.target && isTargetAlive(this.target)) {
+      const dx = this.target.pos.x - this.pos.x;
+      const dy = this.target.pos.y - this.pos.y;
+      const dz = this.target.z - this.z;
+      const dist = Math.hypot(dx, dy, dz) || 1;
+      const speed = Math.hypot(this.vx, this.vy, this.vz) || 5.4 * unitScale;
+      const steer = 0.18;
+      this.vx = THREE.MathUtils.lerp(this.vx, (dx / dist) * speed, steer);
+      this.vy = THREE.MathUtils.lerp(this.vy, (dy / dist) * speed, steer);
+      this.vz = THREE.MathUtils.lerp(this.vz, (dz / dist) * speed, steer);
+    } else {
+      this.target = null;
+    }
+
     this.pos.x += this.vx;
     this.pos.y += this.vy;
     this.z += this.vz;
@@ -291,8 +311,8 @@ class Asteroid {
     this.z = z;
     this.size = size;
     this.radius = asteroidRadius(size);
-    this.drift = drift || new Vector2(randomRange(-0.04, 0.04) * worldWidth, randomRange(-0.035, 0.035) * worldHeight);
-    this.speed = speed || randomRange(0.46, 0.82) * unitScale + state.wave * 0.025;
+    this.drift = drift || new Vector2(randomRange(-0.024, 0.024) * worldWidth, randomRange(-0.02, 0.02) * worldHeight);
+    this.speed = speed || randomRange(1.05, 1.72) * unitScale + state.wave * 0.055;
     this.expired = false;
     this.rot = new THREE.Vector3(randomRange(-0.02, 0.02), randomRange(-0.025, 0.025), randomRange(-0.02, 0.02));
     this.group = createAsteroidGroup(this.radius, size);
@@ -306,14 +326,14 @@ class Asteroid {
     }
 
     const childSize = this.size - 1;
-    const baseSpeed = Math.max(0.38, this.speed * 0.9);
+    const baseSpeed = Math.max(0.95 * unitScale, this.speed * 0.9);
     asteroids.push(new Asteroid(this.pos.x - this.radius * 0.28, this.pos.y, childSize, this.z, new Vector2(this.drift.x - 0.28 * unitScale, this.drift.y + 0.18 * unitScale), baseSpeed));
     asteroids.push(new Asteroid(this.pos.x + this.radius * 0.28, this.pos.y, childSize, this.z, new Vector2(this.drift.x + 0.28 * unitScale, this.drift.y - 0.18 * unitScale), baseSpeed));
   }
 
   update() {
     this.pos.add(this.drift);
-    this.z += this.speed;
+    this.z += this.speed + getRailSpeed() * 0.28;
     this.group.rotation.x += this.rot.x;
     this.group.rotation.y += this.rot.y;
     this.group.rotation.z += this.rot.z;
@@ -354,9 +374,9 @@ class AlienShip {
   }
 
   update() {
-    this.phase += 0.018;
-    this.pos.x += Math.sin(this.phase) * 0.1 * worldWidth;
-    this.pos.y += Math.cos(this.phase * 0.7) * 0.045 * worldHeight;
+    this.phase += 0.032;
+    this.pos.x += Math.sin(this.phase) * 0.022 * worldWidth;
+    this.pos.y += Math.cos(this.phase * 0.7) * 0.014 * worldHeight;
     this.pos.x = clamp(this.pos.x, -worldWidth * 0.42, worldWidth * 0.42);
     this.pos.y = clamp(this.pos.y, -worldHeight * 0.22, worldHeight * 0.38);
     this.group.rotation.z += 0.035;
@@ -400,8 +420,8 @@ class BossShip {
   }
 
   update() {
-    this.pos.x = Math.sin(state.frame * 0.016) * worldWidth * 0.34;
-    this.pos.y = worldHeight * 0.15 + Math.cos(state.frame * 0.012) * worldHeight * 0.12;
+    this.pos.x = Math.sin(state.frame * 0.026) * worldWidth * 0.36;
+    this.pos.y = worldHeight * 0.15 + Math.cos(state.frame * 0.019) * worldHeight * 0.13;
     this.group.rotation.y += 0.012;
     this.group.rotation.z += 0.006;
     this.shootTimer -= 1;
@@ -595,6 +615,7 @@ function initThree() {
   scene.add(keyLight);
 
   buildMaterials();
+  createLockMarker();
   resize();
 }
 
@@ -642,6 +663,8 @@ function buildMaterials() {
   materials.bossEdge = new THREE.LineBasicMaterial({ color: 0xffcc00, transparent: true, opacity: 0.9 });
   materials.grid = new THREE.LineBasicMaterial({ color: 0x154e78, transparent: true, opacity: 0.34 });
   materials.gridHot = new THREE.LineBasicMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.5 });
+  materials.speedLine = new THREE.LineBasicMaterial({ color: 0xcfffff, transparent: true, opacity: 0.42 });
+  materials.lock = new THREE.MeshBasicMaterial({ color: 0xffcc00, transparent: true, opacity: 0.9 });
 }
 
 function createShipGroup() {
@@ -830,6 +853,53 @@ function createFlightTunnel() {
   scene.add(flightTunnel);
 }
 
+function createSpeedLines() {
+  if (speedLines) {
+    scene.remove(speedLines);
+    speedLines.geometry?.dispose();
+  }
+
+  const points = [];
+  const count = 120;
+  for (let i = 0; i < count; i += 1) {
+    const sideBias = Math.random() < 0.56;
+    const x = sideBias ? randomRange(-worldWidth * 0.95, worldWidth * 0.95) : randomRange(-worldWidth * 1.5, worldWidth * 1.5);
+    const y = sideBias ? randomRange(-worldHeight * 0.95, worldHeight * 0.95) : randomRange(-worldHeight * 1.35, worldHeight * 1.35);
+    const z = randomRange(FAR_Z * 1.25, SHIP_Z + 30);
+    const length = randomRange(12, 34) * unitScale;
+    points.push(x, y, z, x, y, z + length);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+  speedLines = new THREE.LineSegments(geometry, materials.speedLine);
+  scene.add(speedLines);
+}
+
+function createLockMarker() {
+  if (lockMarker) {
+    scene.remove(lockMarker);
+  }
+
+  lockMarker = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.045, 8, 34), materials.lock);
+  const crossGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-1.45, 0, 0),
+    new THREE.Vector3(-0.72, 0, 0),
+    new THREE.Vector3(0.72, 0, 0),
+    new THREE.Vector3(1.45, 0, 0),
+    new THREE.Vector3(0, -1.45, 0),
+    new THREE.Vector3(0, -0.72, 0),
+    new THREE.Vector3(0, 0.72, 0),
+    new THREE.Vector3(0, 1.45, 0),
+  ]);
+  const cross = new THREE.LineSegments(crossGeometry, materials.gridHot);
+  lockMarker.add(ring);
+  lockMarker.add(cross);
+  lockMarker.visible = false;
+  scene.add(lockMarker);
+}
+
 function makeParticleMaterial(color) {
   return new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
 }
@@ -967,6 +1037,7 @@ function resize() {
 
   createStarField();
   createFlightTunnel();
+  createSpeedLines();
   if (ship) {
     ship.radius = 1.85 * unitScale;
     ship.group.scale.setScalar(unitScale);
@@ -1009,6 +1080,73 @@ function lateralDistance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function getRailSpeed() {
+  const boost = ship?.boosting ? BOOST_RAIL_SPEED : BASE_RAIL_SPEED;
+  const waveRamp = Math.min(0.55, state.wave * 0.055);
+  return (state.mode === 'playing' ? boost + waveRamp : BASE_RAIL_SPEED * 0.52) * unitScale;
+}
+
+function isTargetAlive(target) {
+  return target === bossShip || target === alienShip || asteroids.includes(target);
+}
+
+function findAutoAimTarget(offset = 0) {
+  if (!ship || state.mode !== 'playing') {
+    return null;
+  }
+
+  const origin = {
+    x: ship.pos.x + offset * unitScale,
+    y: ship.pos.y,
+    z: SHIP_Z - 3.2 * unitScale,
+  };
+  const candidates = [];
+  asteroids.forEach((asteroid) => candidates.push({ entity: asteroid, radius: asteroid.radius, priority: 0 }));
+  if (alienShip) candidates.push({ entity: alienShip, radius: alienShip.hitRadius, priority: -9 });
+  if (bossShip) candidates.push({ entity: bossShip, radius: bossShip.radius, priority: -14 });
+
+  let best = null;
+  let bestScore = Infinity;
+  candidates.forEach(({ entity, radius, priority }) => {
+    if (!entity || entity.z >= origin.z - 4 * unitScale) {
+      return;
+    }
+
+    const depth = Math.abs(entity.z - origin.z);
+    const lateral = Math.hypot(entity.pos.x - origin.x, entity.pos.y - origin.y);
+    const lockCone = 9 * unitScale + depth * 0.22 + radius * 0.85;
+    if (lateral > lockCone) {
+      return;
+    }
+
+    const score = lateral * 1.25 + depth * 0.025 - radius * 0.65 + priority;
+    if (score < bestScore) {
+      bestScore = score;
+      best = entity;
+    }
+  });
+
+  return best;
+}
+
+function updateLockMarker() {
+  if (!lockMarker) {
+    return;
+  }
+
+  const target = findAutoAimTarget(0);
+  if (!target) {
+    lockMarker.visible = false;
+    return;
+  }
+
+  const size = Math.max(2.3 * unitScale, (target.radius || 2) * 1.36);
+  lockMarker.visible = true;
+  lockMarker.position.set(target.pos.x, target.pos.y, target.z);
+  lockMarker.scale.setScalar(size);
+  lockMarker.lookAt(camera.position);
+}
+
 function fireEnemyBurst(source, count, spread) {
   if (!ship) {
     return;
@@ -1022,7 +1160,7 @@ function fireEnemyBurst(source, count, spread) {
     const dy = targetY - source.pos.y;
     const dz = SHIP_Z - source.z;
     const dist = Math.hypot(dx, dy, dz) || 1;
-    const speed = (0.82 + state.wave * 0.035) * unitScale;
+    const speed = (1.22 + state.wave * 0.045) * unitScale;
     enemyBullets.push(new EnemyBullet(source.pos.x, source.pos.y, source.z + 2 * unitScale, (dx / dist) * speed, (dy / dist) * speed, (dz / dist) * speed));
   }
 }
@@ -1041,9 +1179,9 @@ function createWave() {
   state.alienInterval = Math.max(500, 1180 - state.wave * 34);
   state.bossWave = state.wave % 5 === 0;
 
-  const count = state.bossWave ? Math.min(5 + Math.floor(state.wave / 2), 10) : Math.min(5 + state.wave, 14);
+  const count = state.bossWave ? Math.min(6 + Math.floor(state.wave / 2), 11) : Math.min(7 + state.wave, 16);
   for (let i = 0; i < count; i += 1) {
-    spawnIncomingAsteroid(3, FAR_Z - i * randomRange(8, 15));
+    spawnIncomingAsteroid(3, FAR_Z - i * randomRange(6, 11));
   }
 
   if (state.bossWave) {
@@ -1673,13 +1811,25 @@ function updateUI() {
 }
 
 function renderScene() {
+  const railSpeed = getRailSpeed();
   if (starField) {
-    starField.rotation.z += 0.00022;
-    starField.position.z = ((state.frame * 0.16) % 20) * unitScale;
+    starField.rotation.z += 0.00035 + railSpeed * 0.00008;
+    starField.position.z = ((state.frame * railSpeed * 0.72) % 40) * unitScale;
   }
   if (flightTunnel) {
-    flightTunnel.position.z = ((state.frame * 0.22) % 12) * unitScale;
+    flightTunnel.position.z = ((state.frame * railSpeed * 0.92) % 14) * unitScale;
   }
+  if (speedLines) {
+    speedLines.visible = state.mode === 'playing';
+    speedLines.position.z = ((state.frame * railSpeed * 2.8) % 48) * unitScale;
+    materials.speedLine.opacity = clamp(0.24 + railSpeed * 0.11, 0.32, 0.72);
+  }
+  if (camera) {
+    const targetFov = FOV + (state.mode === 'playing' ? (ship?.boosting ? 10 : 4.5) : 0);
+    camera.fov += (targetFov - camera.fov) * 0.08;
+    camera.updateProjectionMatrix();
+  }
+  updateLockMarker();
 
   const shakeX = state.shake > 0 ? randomRange(-state.shakeX, state.shakeX) : 0;
   const shakeY = state.shake > 0 ? randomRange(-state.shakeY, state.shakeY) : 0;
