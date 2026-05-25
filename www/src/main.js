@@ -675,8 +675,8 @@ function createShipGroup() {
     new THREE.BufferAttribute(
       new Float32Array([
         0, 0, -2.55,
-        -1.35, -0.8, 1.1,
-        1.35, -0.8, 1.1,
+        -1.72, -0.82, 1.1,
+        1.72, -0.82, 1.1,
         0, 1.0, 0.72,
         0, -0.12, 1.55,
       ]),
@@ -692,7 +692,7 @@ function createShipGroup() {
 
   const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.38, 12, 8), materials.ship);
   canopy.position.set(0, 0.28, -0.28);
-  canopy.scale.set(1, 0.72, 1.2);
+  canopy.scale.set(1.18, 0.72, 1.2);
   group.add(canopy);
 
   const flame = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.75, 10), materials.flame);
