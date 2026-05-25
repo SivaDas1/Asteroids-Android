@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Star Rail: 3D Full Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/index-3zQES7H4.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-CfsqJArs.css">
+  <script type="module" crossorigin src="./assets/index-3ASJ6MCs.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-DdEeQ32Q.css">
 </head>
 <body>
     <div id="introScreen" class="game-screen">
@@ -36,6 +36,7 @@
         <div id="hud" class="hud hidden">
             <div class="hud-box">
                 <div class="hr">SCORE: <span id="s">000000</span></div>
+                <div class="hr">CREDITS: <span id="cr">0</span> <span id="runCr">(+0)</span></div>
                 <div class="hr"><span id="w">WAVE 1</span> <span id="k">ROCKS 0</span></div>
                 <div class="hr" id="l">LIVES: 3</div>
                 <div class="hr"><span id="h">HI 0</span> <span id="p">POWER --</span></div>
@@ -54,7 +55,7 @@
 
         <div id="startScreen" class="game-screen hidden">
             <h1>STAR RAIL 3D</h1>
-            <p style="margin-bottom: 30px;">SPEED RAIL / AUTO LOCK / ANDROID 3D</p>
+            <p style="margin-bottom: 30px;">LIGHT BOOST / AUTO LOCK / CREDITS / MUSIC</p>
             <p style="font-size: 12px; color: #00f2ff; margin-bottom: 12px;">HIGH SCORE: <span id="highScoreDisplay">0</span></p>
             <p style="font-size: 12px; color: #ffcc00; margin-bottom: 20px;">TOTAL COINS: <span id="totalCoinsDisplay">0</span></p>
             <button id="startBtn">ENGAGE ENGINES</button><br>
@@ -90,9 +91,9 @@
                 SHIFT: Boost<br>
                 P: Pause<br><br>
                 STICK: Move ship horizontally and vertically<br>
-                BOOST: Quick dodge<br>
+                BOOST: Light-speed dodge and bonus credits<br>
                 FIRE: Auto-lock shoot<br><br>
-                COLLECT: Fuel, ammo, shield, life, triple shot<br>
+                COLLECT: Credits, ammo, fuel, shield, life, triple shot<br>
                 3D RAIL FLIGHT: Dodge fast incoming rocks, alien ships, and boss fire<br>
                 EVERY 5TH WAVE: Boss fight
             </div>

@@ -11,7 +11,7 @@ const FAR_Z = -150;
 const BOSS_Z = -104;
 const DESPAWN_Z = SHIP_Z + 16;
 const BASE_RAIL_SPEED = 1.55;
-const BOOST_RAIL_SPEED = 2.75;
+const BOOST_RAIL_SPEED = 7.8;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const randomRange = (min, max) => Math.random() * (max - min) + min;
@@ -55,6 +55,7 @@ const state = {
   score: 0,
   highScore: Number(localStorage.getItem('srHS') || '0'),
   totalCoins: Number(localStorage.getItem('srCoins') || '0'),
+  runCoins: 0,
   lives: 3,
   wave: 1,
   kills: 0,
@@ -67,7 +68,7 @@ const state = {
   bulletCooldown: 0,
   bulletCooldownMax: 12,
   bulletRegenTimer: 0,
-  bulletRegenInterval: 260,
+  bulletRegenInterval: 95,
   combo: 0,
   comboTimer: 0,
   comboMult: 1,
@@ -86,6 +87,7 @@ const state = {
 let audio = null;
 let masterGain = null;
 let noiseBuffer = null;
+let music = null;
 
 const materials = {};
 const geometries = {};
@@ -166,8 +168,8 @@ class Ship {
     }
 
     if (this.boosting) {
-      state.fuel = Math.max(0, state.fuel - (state.powerType === 'double_fuel' ? 0.14 : 0.28));
-      if (state.frame % 8 === 0) {
+      state.fuel = Math.max(0, state.fuel - (state.powerType === 'double_fuel' ? 0.2 : 0.4));
+      if (state.frame % 3 === 0) {
         playSfx('thrust');
       }
     } else {
@@ -333,7 +335,8 @@ class Asteroid {
 
   update() {
     this.pos.add(this.drift);
-    this.z += this.speed + getRailSpeed() * 0.28;
+    const rush = ship?.boosting ? getRailSpeed() * 1.55 : getRailSpeed() * 0.32;
+    this.z += this.speed + rush;
     this.group.rotation.x += this.rot.x;
     this.group.rotation.y += this.rot.y;
     this.group.rotation.z += this.rot.z;
@@ -480,6 +483,7 @@ class Pickup {
     this.pos = new Vector2(x, y);
     this.z = z;
     this.type = type;
+    this.creditValue = type === 'credit' ? Math.floor(randomRange(8, 24) + state.wave * 1.5) : 0;
     this.radius = 1.55 * unitScale;
     this.life = 760;
     this.vz = 0.52 * unitScale;
@@ -909,6 +913,7 @@ function initAudio() {
     if (audio.state === 'suspended') {
       audio.resume();
     }
+    startMusic();
     return;
   }
 
@@ -923,9 +928,68 @@ function initAudio() {
     for (let i = 0; i < samples.length; i += 1) {
       samples[i] = Math.random() * 2 - 1;
     }
+    startMusic();
   } catch {
     audio = null;
   }
+}
+
+function startMusic() {
+  if (!audio || !masterGain || music) {
+    return;
+  }
+
+  const gain = audio.createGain();
+  gain.gain.value = 0.045;
+  gain.connect(masterGain);
+  music = { gain, step: 0, timer: 0 };
+  music.timer = window.setInterval(playMusicStep, 185);
+  playMusicStep();
+}
+
+function updateMusicMix() {
+  if (!audio || !music) {
+    return;
+  }
+
+  const target = state.mode === 'playing' ? (ship?.boosting ? 0.16 : 0.095) : 0.045;
+  music.gain.gain.setTargetAtTime(target, audio.currentTime, 0.12);
+}
+
+function playMusicNote(freq, start, duration, type, volume, destination = music?.gain) {
+  if (!audio || !destination) {
+    return;
+  }
+
+  const osc = audio.createOscillator();
+  const gain = audio.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  osc.connect(gain);
+  gain.connect(destination);
+  osc.start(start);
+  osc.stop(start + duration + 0.03);
+}
+
+function playMusicStep() {
+  if (!audio || !music) {
+    return;
+  }
+
+  const now = audio.currentTime;
+  const bass = [82.41, 98, 110, 98, 73.42, 98, 123.47, 110];
+  const lead = [329.63, 392, 493.88, 392, 440, 523.25, 493.88, 392];
+  const step = music.step % bass.length;
+  if (step % 2 === 0) {
+    playMusicNote(bass[step], now, 0.22, 'sawtooth', 0.08);
+  }
+  if (state.mode === 'playing' && (step === 1 || step === 4 || step === 6)) {
+    playMusicNote(lead[step], now + 0.025, 0.13, 'triangle', ship?.boosting ? 0.075 : 0.052);
+  }
+  music.step += 1;
 }
 
 function playSfx(type) {
@@ -1066,6 +1130,7 @@ function pickupColor(type) {
     triple_shot: '#ff4dff',
     infinite_bullets: '#ffffff',
     double_fuel: '#ffcc00',
+    credit: '#ffd95a',
   }[type] || '#ffffff';
 }
 
@@ -1291,16 +1356,18 @@ function startGame() {
 
   state.mode = 'playing';
   state.score = 0;
+  state.runCoins = 0;
   state.lives = 3 + hullLevel;
   state.wave = 1;
   state.maxFuel = 100 + fuelLevel * 20;
   state.fuel = state.maxFuel;
-  state.maxAmmo = 20 + ammoLevel * 6;
+  state.maxAmmo = 36 + ammoLevel * 10;
   state.ammo = state.maxAmmo;
   state.maxShield = shieldLevel;
   state.shield = Math.min(shieldLevel, 1);
   state.bulletCooldown = 0;
   state.bulletCooldownMax = 12;
+  state.bulletRegenTimer = 0;
   state.combo = 0;
   state.comboTimer = 0;
   state.comboMult = 1;
@@ -1346,8 +1413,9 @@ function updatePlaying() {
   if (state.bulletRegenTimer >= state.bulletRegenInterval) {
     state.bulletRegenTimer = 0;
     if (state.ammo < state.maxAmmo && state.powerType !== 'infinite_bullets') {
-      state.ammo += 1;
-      popups.push(new ScorePopup(ship.pos.x, ship.pos.y + 2.7 * unitScale, SHIP_Z - 2, 'AMMO +1', '#00f2ff'));
+      const refill = Math.min(2, state.maxAmmo - state.ammo);
+      state.ammo += refill;
+      popups.push(new ScorePopup(ship.pos.x, ship.pos.y + 2.7 * unitScale, SHIP_Z - 2, `AMMO +${refill}`, '#00f2ff'));
     }
   }
 
@@ -1376,7 +1444,7 @@ function updatePlaying() {
   if (asteroids.length === 0 && !bossShip && state.mode === 'playing') {
     state.wave += 1;
     state.fuel = Math.min(state.maxFuel, state.fuel + 35);
-    state.ammo = Math.min(state.maxAmmo, state.ammo + 4);
+    state.ammo = Math.min(state.maxAmmo, state.ammo + 10);
     state.shield = Math.min(state.maxShield, state.shield + 1);
     createWave();
   }
@@ -1535,6 +1603,13 @@ function checkCollisions() {
 function removeExpiredAsteroids() {
   for (let i = asteroids.length - 1; i >= 0; i -= 1) {
     if (asteroids[i].expired) {
+      if (
+        state.mode === 'playing' &&
+        ship?.boosting &&
+        lateralDistance(ship.pos, asteroids[i].pos) < asteroids[i].radius + 5.5 * unitScale
+      ) {
+        grantCredits(5 + asteroids[i].size * 2, ship.pos.x, ship.pos.y, SHIP_Z - 2, 'BOOST SLIP');
+      }
       asteroids[i].remove();
       asteroids.splice(i, 1);
     }
@@ -1558,11 +1633,18 @@ function destroyAsteroid(index) {
   }
 
   if (state.powerType !== 'infinite_bullets') {
-    state.ammo = Math.min(state.maxAmmo, state.ammo + 1);
-    popups.push(new ScorePopup(asteroid.pos.x, asteroid.pos.y - 2.3 * unitScale, asteroid.z, 'AMMO +1', '#00f2ff'));
+    const ammoBonus = Math.min(3, state.maxAmmo - state.ammo);
+    state.ammo += ammoBonus;
+    if (ammoBonus > 0) {
+      popups.push(new ScorePopup(asteroid.pos.x, asteroid.pos.y - 2.3 * unitScale, asteroid.z, `AMMO +${ammoBonus}`, '#00f2ff'));
+    }
   }
 
-  const dropChance = asteroid.size === 3 ? 0.3 : asteroid.size === 2 ? 0.18 : 0.08;
+  if (asteroid.size >= 2 || Math.random() < 0.42) {
+    spawnCreditPickup(asteroid.pos.x + randomRange(-1.2, 1.2) * unitScale, asteroid.pos.y, asteroid.z, asteroid.size);
+  }
+
+  const dropChance = asteroid.size === 3 ? 0.42 : asteroid.size === 2 ? 0.26 : 0.12;
   if (Math.random() < dropChance) {
     spawnPickup(asteroid.pos.x, asteroid.pos.y, asteroid.z);
   }
@@ -1581,6 +1663,8 @@ function destroyAlien() {
   createExplosion(x, y, z, '#79ff8b', 28);
   triggerShake(1.2, 16);
   removeAlien();
+  pickups.push(new Pickup(x - 2.2 * unitScale, y, z + 5 * unitScale, 'credit'));
+  pickups.push(new Pickup(x + 2.2 * unitScale, y, z + 5 * unitScale, 'credit'));
   activatePower(Math.random() < 0.5 ? 'double_fuel' : 'infinite_bullets', x, y, z);
 }
 
@@ -1604,6 +1688,9 @@ function damageBoss(x, y, z) {
     playSfx('explosion');
     pickups.push(new Pickup(bx, by, bz + 8 * unitScale, 'shield'));
     pickups.push(new Pickup(bx + 3.1 * unitScale, by, bz + 8 * unitScale, 'triple_shot'));
+    for (let i = 0; i < 8; i += 1) {
+      pickups.push(new Pickup(bx + randomRange(-7, 7) * unitScale, by + randomRange(-5, 5) * unitScale, bz + 10 * unitScale, 'credit'));
+    }
     removeBoss();
     clearEntityList(enemyBullets);
     notify('BOSS DESTROYED', '#ffcc00');
@@ -1613,11 +1700,25 @@ function damageBoss(x, y, z) {
 function spawnPickup(x, y, z) {
   const roll = Math.random();
   let type = 'fuel';
-  if (roll > 0.78) type = 'triple_shot';
-  else if (roll > 0.62) type = 'shield';
-  else if (roll > 0.46) type = 'repair';
-  else if (roll > 0.24) type = 'ammo';
+  if (roll > 0.82) type = 'triple_shot';
+  else if (roll > 0.68) type = 'shield';
+  else if (roll > 0.54) type = 'repair';
+  else if (roll > 0.26) type = 'ammo';
   pickups.push(new Pickup(x, y, z, type));
+}
+
+function spawnCreditPickup(x, y, z, asteroidSize = 1) {
+  const count = asteroidSize === 3 ? 3 : asteroidSize === 2 ? 2 : 1;
+  for (let i = 0; i < count; i += 1) {
+    const pickup = new Pickup(
+      x + randomRange(-1.7, 1.7) * unitScale,
+      y + randomRange(-1.4, 1.4) * unitScale,
+      z + randomRange(-1, 1) * unitScale,
+      'credit',
+    );
+    pickup.creditValue += asteroidSize * 3;
+    pickups.push(pickup);
+  }
 }
 
 function collectPickup(pickup) {
@@ -1625,14 +1726,17 @@ function collectPickup(pickup) {
     state.fuel = state.maxFuel;
     popups.push(new ScorePopup(pickup.pos.x, pickup.pos.y, pickup.z, 'FUEL FULL', '#ffcc00'));
   } else if (pickup.type === 'ammo') {
-    state.ammo = state.maxAmmo;
-    popups.push(new ScorePopup(pickup.pos.x, pickup.pos.y, pickup.z, 'AMMO FULL', '#00f2ff'));
+    const refill = Math.min(16, state.maxAmmo - state.ammo);
+    state.ammo += refill;
+    popups.push(new ScorePopup(pickup.pos.x, pickup.pos.y, pickup.z, refill > 0 ? `AMMO +${refill}` : 'AMMO FULL', '#00f2ff'));
   } else if (pickup.type === 'shield') {
     state.shield = Math.min(state.maxShield || 1, state.shield + 1);
     popups.push(new ScorePopup(pickup.pos.x, pickup.pos.y, pickup.z, 'SHIELD +1', '#79ff8b'));
   } else if (pickup.type === 'repair') {
     state.lives += 1;
     popups.push(new ScorePopup(pickup.pos.x, pickup.pos.y, pickup.z, 'LIFE +1', '#ff6688'));
+  } else if (pickup.type === 'credit') {
+    grantCredits(pickup.creditValue, pickup.pos.x, pickup.pos.y, pickup.z, 'CREDIT');
   } else {
     activatePower(pickup.type, pickup.pos.x, pickup.pos.y, pickup.z);
   }
@@ -1663,6 +1767,14 @@ function activatePower(type, x, y, z) {
   playSfx('power');
 }
 
+function grantCredits(amount, x, y, z, label = 'CREDITS') {
+  const credits = Math.max(1, Math.floor(amount));
+  state.totalCoins += credits;
+  state.runCoins += credits;
+  localStorage.setItem('srCoins', String(state.totalCoins));
+  popups.push(new ScorePopup(x, y + 2.1 * unitScale, z, `${label} +${credits}`, '#ffd95a'));
+}
+
 function registerScore(points, x, y, z) {
   state.kills += 1;
   state.combo = state.comboTimer > 0 ? state.combo + 1 : 1;
@@ -1671,7 +1783,9 @@ function registerScore(points, x, y, z) {
 
   const total = points * state.comboMult;
   state.score += total;
-  state.totalCoins += Math.max(1, Math.floor(points / 100));
+  const comboBonus = Math.max(0, state.comboMult - 1) * 2;
+  const boostBonus = ship?.boosting ? 4 : 0;
+  grantCredits(Math.max(2, Math.floor(points / 70)) + comboBonus + boostBonus, x, y, z, boostBonus ? 'BOOST CREDIT' : 'CREDIT');
   popups.push(new ScorePopup(x, y, z, state.comboMult > 1 ? `${total} x${state.comboMult}` : total, '#ffffff'));
 }
 
@@ -1763,6 +1877,8 @@ function buyUpgrade(key, baseCost) {
 
 function updateUI() {
   const score = document.getElementById('s');
+  const credits = document.getElementById('cr');
+  const runCredits = document.getElementById('runCr');
   const wave = document.getElementById('w');
   const rocks = document.getElementById('k');
   const lives = document.getElementById('l');
@@ -1777,6 +1893,8 @@ function updateUI() {
   const comboMult = document.getElementById('comboMult');
 
   if (score) score.textContent = String(state.score).padStart(6, '0');
+  if (credits) credits.textContent = String(state.totalCoins);
+  if (runCredits) runCredits.textContent = `(+${state.runCoins})`;
   if (wave) wave.textContent = `WAVE ${state.wave}`;
   if (rocks) rocks.textContent = `ROCKS ${asteroids.length}`;
   if (lives) lives.textContent = `LIVES: ${state.lives}`;
@@ -1812,20 +1930,21 @@ function updateUI() {
 
 function renderScene() {
   const railSpeed = getRailSpeed();
+  updateMusicMix();
   if (starField) {
-    starField.rotation.z += 0.00035 + railSpeed * 0.00008;
-    starField.position.z = ((state.frame * railSpeed * 0.72) % 40) * unitScale;
+    starField.rotation.z += 0.00035 + railSpeed * 0.00012;
+    starField.position.z = ((state.frame * railSpeed * 1.35) % 54) * unitScale;
   }
   if (flightTunnel) {
-    flightTunnel.position.z = ((state.frame * railSpeed * 0.92) % 14) * unitScale;
+    flightTunnel.position.z = ((state.frame * railSpeed * 1.7) % 18) * unitScale;
   }
   if (speedLines) {
     speedLines.visible = state.mode === 'playing';
-    speedLines.position.z = ((state.frame * railSpeed * 2.8) % 48) * unitScale;
-    materials.speedLine.opacity = clamp(0.24 + railSpeed * 0.11, 0.32, 0.72);
+    speedLines.position.z = ((state.frame * railSpeed * 5.4) % 72) * unitScale;
+    materials.speedLine.opacity = clamp(0.24 + railSpeed * 0.09, 0.34, 0.88);
   }
   if (camera) {
-    const targetFov = FOV + (state.mode === 'playing' ? (ship?.boosting ? 10 : 4.5) : 0);
+    const targetFov = FOV + (state.mode === 'playing' ? (ship?.boosting ? 18 : 5) : 0);
     camera.fov += (targetFov - camera.fov) * 0.08;
     camera.updateProjectionMatrix();
   }

@@ -191,6 +191,11 @@ button:active {
     font-size: 12px;
 }
 
+#cr,
+#runCr {
+    color: var(--neon-gold);
+}
+
 #l {
     color: var(--danger);
 }
