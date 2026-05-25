@@ -72,6 +72,7 @@ const state = {
   combo: 0,
   comboTimer: 0,
   comboMult: 1,
+  lastCreditSfxFrame: -999,
   powerType: '',
   powerTimer: 0,
   powerDuration: 900,
@@ -138,6 +139,7 @@ class Ship {
     this.radius = 1.85 * unitScale;
     this.invincible = 130;
     this.boosting = false;
+    this.wasBoosting = false;
     this.inputX = 0;
     this.inputY = 0;
     this.group = createShipGroup();
@@ -155,6 +157,9 @@ class Ship {
     const normalizedX = magnitude > 1 ? this.inputX / magnitude : this.inputX;
     const normalizedY = magnitude > 1 ? this.inputY / magnitude : this.inputY;
     this.boosting = (keys.ShiftLeft || keys.ShiftRight || touch.boost) && state.fuel > 0;
+    if (this.boosting && !this.wasBoosting) {
+      playSfx('boost');
+    }
 
     const acceleration = (this.boosting ? 0.08 : 0.055) * worldHeight;
     const maxSpeed = (this.boosting ? 0.14 : 0.095) * worldHeight;
@@ -185,6 +190,7 @@ class Ship {
     if (this.invincible > 0) {
       this.invincible -= 1;
     }
+    this.wasBoosting = this.boosting;
     this.syncMesh();
   }
 
@@ -235,13 +241,14 @@ class Ship {
       createExplosion(this.pos.x, this.pos.y, SHIP_Z, '#00f2ff', 22);
       notify('SHIELD HIT', '#00f2ff');
       triggerShake(1.1, 13);
-      playSfx('power');
+      playSfx('shield');
       return;
     }
 
     state.lives -= 1;
     createExplosion(this.pos.x, this.pos.y, SHIP_Z, '#ff4d7d', 34);
     triggerShake(1.9, 20);
+    playSfx('damage');
     playSfx('explosion');
 
     if (state.lives <= 0) {
@@ -940,10 +947,10 @@ function startMusic() {
   }
 
   const gain = audio.createGain();
-  gain.gain.value = 0.045;
+  gain.gain.value = 0.06;
   gain.connect(masterGain);
   music = { gain, step: 0, timer: 0 };
-  music.timer = window.setInterval(playMusicStep, 185);
+  music.timer = window.setInterval(playMusicStep, 150);
   playMusicStep();
 }
 
@@ -952,7 +959,7 @@ function updateMusicMix() {
     return;
   }
 
-  const target = state.mode === 'playing' ? (ship?.boosting ? 0.16 : 0.095) : 0.045;
+  const target = state.mode === 'playing' ? (ship?.boosting ? 0.22 : 0.13) : 0.055;
   music.gain.gain.setTargetAtTime(target, audio.currentTime, 0.12);
 }
 
@@ -974,21 +981,73 @@ function playMusicNote(freq, start, duration, type, volume, destination = music?
   osc.stop(start + duration + 0.03);
 }
 
+function playNoiseHit(start, duration, filterType, frequency, volume, destination = music?.gain) {
+  if (!audio || !noiseBuffer || !destination) {
+    return;
+  }
+
+  const src = audio.createBufferSource();
+  const filter = audio.createBiquadFilter();
+  const gain = audio.createGain();
+  src.buffer = noiseBuffer;
+  filter.type = filterType;
+  filter.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(destination);
+  src.start(start);
+  src.stop(start + duration + 0.04);
+}
+
+function playKick(start) {
+  if (!audio || !music) {
+    return;
+  }
+
+  const osc = audio.createOscillator();
+  const gain = audio.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(120, start);
+  osc.frequency.exponentialRampToValueAtTime(42, start + 0.16);
+  gain.gain.setValueAtTime(0.12, start);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.19);
+  osc.connect(gain);
+  gain.connect(music.gain);
+  osc.start(start);
+  osc.stop(start + 0.2);
+}
+
 function playMusicStep() {
   if (!audio || !music) {
     return;
   }
 
   const now = audio.currentTime;
-  const bass = [82.41, 98, 110, 98, 73.42, 98, 123.47, 110];
-  const lead = [329.63, 392, 493.88, 392, 440, 523.25, 493.88, 392];
-  const step = music.step % bass.length;
-  if (step % 2 === 0) {
-    playMusicNote(bass[step], now, 0.22, 'sawtooth', 0.08);
+  const bass = [82.41, 82.41, 98, 110, 73.42, 73.42, 98, 123.47];
+  const arp = [329.63, 392, 493.88, 659.25, 440, 523.25, 659.25, 783.99];
+  const step = music.step % 16;
+  const beat = step % 8;
+
+  if (step % 4 === 0) {
+    playKick(now);
+    playMusicNote(bass[(step / 2) % bass.length], now + 0.01, 0.34, 'sawtooth', ship?.boosting ? 0.13 : 0.095);
   }
-  if (state.mode === 'playing' && (step === 1 || step === 4 || step === 6)) {
-    playMusicNote(lead[step], now + 0.025, 0.13, 'triangle', ship?.boosting ? 0.075 : 0.052);
+  if (beat === 4) {
+    playNoiseHit(now, 0.12, 'bandpass', 1900, 0.075);
   }
+  playNoiseHit(now, 0.028, 'highpass', ship?.boosting ? 7600 : 5600, ship?.boosting ? 0.045 : 0.026);
+
+  if (state.mode === 'playing' && step % 2 === 1) {
+    const freq = arp[(step + Math.floor(music.step / 16)) % arp.length];
+    playMusicNote(freq, now + 0.018, 0.12, step % 4 === 1 ? 'square' : 'triangle', ship?.boosting ? 0.075 : 0.048);
+  }
+  if (state.mode === 'playing' && ship?.boosting && step % 4 === 2) {
+    playMusicNote(987.77, now, 0.08, 'triangle', 0.04);
+  }
+
   music.step += 1;
 }
 
@@ -1011,6 +1070,10 @@ function playSfx(type) {
     osc.connect(gain);
     osc.start(now);
     osc.stop(now + 0.12);
+  } else if (type === 'boost') {
+    playMusicNote(220, now, 0.16, 'sawtooth', 0.14, masterGain);
+    playMusicNote(880, now + 0.03, 0.22, 'triangle', 0.09, masterGain);
+    playNoiseHit(now, 0.28, 'highpass', 3600, 0.16, masterGain);
   } else if (type === 'explosion') {
     const src = audio.createBufferSource();
     const filter = audio.createBiquadFilter();
@@ -1024,6 +1087,36 @@ function playSfx(type) {
     filter.connect(gain);
     src.start(now);
     src.stop(now + 0.5);
+  } else if (type === 'damage') {
+    playMusicNote(190, now, 0.18, 'square', 0.18, masterGain);
+    playMusicNote(88, now + 0.08, 0.2, 'sawtooth', 0.1, masterGain);
+    playNoiseHit(now, 0.16, 'bandpass', 520, 0.12, masterGain);
+  } else if (type === 'credit') {
+    [880, 1174.66, 1760].forEach((freq, index) => {
+      playMusicNote(freq, now + index * 0.035, 0.09, 'triangle', 0.08, masterGain);
+    });
+  } else if (type === 'ammo') {
+    playMusicNote(520, now, 0.08, 'square', 0.07, masterGain);
+    playMusicNote(740, now + 0.045, 0.08, 'square', 0.06, masterGain);
+  } else if (type === 'fuel') {
+    playMusicNote(180, now, 0.15, 'sawtooth', 0.075, masterGain);
+    playMusicNote(360, now + 0.05, 0.15, 'triangle', 0.065, masterGain);
+  } else if (type === 'shield') {
+    playMusicNote(660, now, 0.18, 'triangle', 0.09, masterGain);
+    playMusicNote(1320, now + 0.035, 0.12, 'triangle', 0.065, masterGain);
+    playNoiseHit(now, 0.12, 'highpass', 4200, 0.07, masterGain);
+  } else if (type === 'wave') {
+    [392, 493.88, 659.25, 987.77].forEach((freq, index) => {
+      playMusicNote(freq, now + index * 0.055, 0.16, 'triangle', 0.07, masterGain);
+    });
+  } else if (type === 'boss') {
+    playMusicNote(110, now, 0.36, 'sawtooth', 0.13, masterGain);
+    playMusicNote(55, now + 0.18, 0.32, 'square', 0.08, masterGain);
+    playNoiseHit(now, 0.32, 'bandpass', 700, 0.11, masterGain);
+  } else if (type === 'start') {
+    [261.63, 392, 523.25, 783.99].forEach((freq, index) => {
+      playMusicNote(freq, now + index * 0.055, 0.14, 'triangle', 0.07, masterGain);
+    });
   } else if (type === 'power') {
     [520, 740, 1040].forEach((freq, index) => {
       const osc = audio.createOscillator();
@@ -1252,8 +1345,10 @@ function createWave() {
   if (state.bossWave) {
     bossShip = new BossShip();
     notify(`BOSS WAVE ${state.wave}`, '#ff335f');
+    playSfx('boss');
   } else {
     notify(`WAVE ${state.wave}`, '#00f2ff');
+    playSfx('wave');
   }
 }
 
@@ -1340,6 +1435,7 @@ function showMenu() {
 
 function startGame() {
   initAudio();
+  playSfx('start');
   clearEntityList(asteroids);
   clearEntityList(bullets);
   clearEntityList(enemyBullets);
@@ -1371,6 +1467,7 @@ function startGame() {
   state.combo = 0;
   state.comboTimer = 0;
   state.comboMult = 1;
+  state.lastCreditSfxFrame = -999;
   state.powerType = '';
   state.powerTimer = 0;
   state.frame = 0;
@@ -1741,7 +1838,15 @@ function collectPickup(pickup) {
     activatePower(pickup.type, pickup.pos.x, pickup.pos.y, pickup.z);
   }
 
-  playSfx('power');
+  const pickupSfx = {
+    fuel: 'fuel',
+    ammo: 'ammo',
+    shield: 'shield',
+    repair: 'power',
+  }[pickup.type];
+  if (pickupSfx) {
+    playSfx(pickupSfx);
+  }
 }
 
 function activatePower(type, x, y, z) {
@@ -1773,6 +1878,10 @@ function grantCredits(amount, x, y, z, label = 'CREDITS') {
   state.runCoins += credits;
   localStorage.setItem('srCoins', String(state.totalCoins));
   popups.push(new ScorePopup(x, y + 2.1 * unitScale, z, `${label} +${credits}`, '#ffd95a'));
+  if (state.frame - state.lastCreditSfxFrame > 7) {
+    state.lastCreditSfxFrame = state.frame;
+    playSfx('credit');
+  }
 }
 
 function registerScore(points, x, y, z) {
